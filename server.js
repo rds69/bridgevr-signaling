@@ -1,71 +1,45 @@
-// PURE Node.js - NO EXTERNAL DEPENDENCIES!
-const http = require('http');
-const url = require('url');
-
-const clients = [];
-let offer = null;
-
-const server = http.createServer((req, res) => {
-    res.writeHead(200, { 'Content-Type': 'text/plain' });
-    res.end('🟢 VR Signaling Server ALIVE!\nIP Test OK');
-});
-
-server.listen(3000, '0.0.0.0', () => {
-    console.log('🚀 VR Server LIVE: http://0.0.0.0:3000');
-    console.log('📱 Test: http://YOUR-IP:3000');
-});
-
-// WebSocket-like polling (simplified)
-setInterval(() => {
-    console.log(`👥 Connected phones: ${clients.length}`);
-}, 5000);
-
-http.createServer((req, res) => {
-    const query = url.parse(req.url, true).query;
-    
-    if (query.offer) {
-        offer = query.offer;
-        console.log('📨 Offer received:', offer.substring(0, 50) + '...');
-        res.end('Offer saved');
-    } else if (query.answer) {
-        console.log('📨 Answer received');
-        // Broadcast answer
-        res.end('Answer saved');
-    } else {
-        res.end(JSON.stringify({ offer: offer || null }));
-    }
-}).listen(3001, '0.0.0.0');
-
-console.log('✅ Server ready! No npm needed!');
 const WebSocket = require('ws');
 const http = require('http');
 
-// Cloud providers like Render or Heroku provide a PORT via process.env
+// Use the port provided by the cloud platform (Render/Heroku)
 const port = process.env.PORT || 3000;
 
-// Create a dummy HTTP server for the WebSocket to attach to
+// Create a simple HTTP server
 const server = http.createServer((req, res) => {
-    res.writeHead(200);
-    res.end("BridgeVR Signaling Server is Live!");
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    res.end("BridgeVR Signaling Server is Live and Running!");
 });
 
+// Attach WebSocket server to the HTTP server
 const wss = new WebSocket.Server({ server });
 
-console.log(`BridgeVR Server running on port ${port}`);
+console.log(`BridgeVR Server starting on port ${port}`);
 
 wss.on('connection', (ws) => {
-    console.log("New Phone Connected to Bridge");
-    
-    ws.on('message', (message) => {
-        // Broadcast signaling data (SDP/ICE) to the other phone
+    console.log("A new BridgeVR device has connected.");
+
+    ws.on('message', (data) => {
+        // Convert buffer to string if necessary
+        const message = data.toString();
+        
+        // Broadcast the signaling message to all OTHER connected devices
         wss.clients.forEach((client) => {
             if (client !== ws && client.readyState === WebSocket.OPEN) {
-                client.send(message.toString());
+                client.send(message);
             }
         });
     });
 
-    ws.on('close', () => console.log("Phone Disconnected"));
+    ws.on('close', () => {
+        console.log("A device disconnected from the Bridge.");
+    });
+
+    ws.on('error', (error) => {
+        console.error("WebSocket Error:", error);
+    });
 });
 
-server.listen(port);
+// Start listening
+server.listen(port, () => {
+    console.log(`Listening for BridgeVR signals on port ${port}`);
+});
